@@ -24,7 +24,7 @@ class mslto {
 
                     if (props[key] === undefined) {
 
-                        props[key] = parent[key];
+                        props[key] = this.parent[key];
                     }
 
                     return props[key];
