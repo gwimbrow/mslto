@@ -13,7 +13,7 @@ class mslto {
         
         for (const key in props) {
 
-            mslto.register.set(key, (mslto.register.get(key) || []).concat([this]));
+            mslto.register.set(key, [this].concat(mslto.register.get(key) || []));
 
             defined[key] = {
                 
@@ -91,7 +91,7 @@ class mslto {
 
     static reMount(key, val) {
 
-        return mslto.register.get(key).reduce((success, next) => !!(next[key] = val));
+        return mslto.register.get(key).reduce((success, next) => !!(next[key] = val), false);
     }
 
     constructor (wrapper, ...args) {
@@ -131,7 +131,11 @@ class mslto {
 
                             return !!(Object.defineProperty(target, key, {
 
-                                value: val, writable: true, configurable: true
+                                value: val,
+
+                                writable: true,
+
+                                configurable: true
                             }));
 
                          } else if (target[key] !== val) {
@@ -156,13 +160,16 @@ class mslto {
                         }
 
                         return true;
+                        
                     }
                 })
             },
 
             "wrapper": {
 
-                value: wrapper, writable: true
+                value: wrapper,
+
+                writable: true
             }
             
         });
