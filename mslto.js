@@ -51,7 +51,9 @@ class mslto {
 
     static parse (template, ...interpolations) {
 
-        const parent = this;
+        const parent = this.reflection;
+
+        const id = this.constructor.name;
 
         return template.reduce((merge, slice, ndx) => merge + (component => {
 
@@ -65,7 +67,7 @@ class mslto {
 
                         "id": {
 
-                            value: `${parent.constructor.name}-${ndx}`
+                            value: `${id}-${ndx}`
                         },
 
                         "parent": {
@@ -94,11 +96,12 @@ class mslto {
 
     constructor (wrapper, ...args) {
 
-        const props = args.pop();
+        const props = typeof args[args.length - 1] !== "string" ? args.pop() : {};
 
         if (args.some(prop => typeof prop !== "string")) {
 
             throw new Error("passed props must only inclue string values");
+
         }
 
         for (const inherited of args) {
@@ -118,48 +121,55 @@ class mslto {
                 value: mslto.parse.bind(this)
             },
 
+            "reflection": {
+
+                value: new Proxy(this, {
+
+                    set (target, key, val) {
+
+                         if (!target.hasOwnProperty(key)) {
+
+                            return !!(Object.defineProperty(target, key, {
+
+                                value: val, writable: true, configurable: true
+                            }));
+
+                         } else if (target[key] !== val) {
+
+                            const type = Object.getPrototypeOf(target[key]);
+
+                            const desc = Object.getOwnPropertyDescriptor(target, key);
+
+                            if (type === Object.getPrototypeOf(val) || desc.configurable) {
+
+                                if (mslto.register.has(key)) {
+
+                                    return !!(mslto.reMount(key, val));
+                                }
+
+                                return !!(target[key] = val);
+
+                            } else {
+
+                                throw new Error(`typecheck fails for prop ${key} with value ${val}; requires ${type.constructor.name}`);
+                            }
+                        }
+
+                        return true;
+                    }
+                })
+            },
+
             "wrapper": {
 
-                value: wrapper,
-
-                writable: true
+                value: wrapper, writable: true
             }
             
         });
 
         Object.defineProperties(this, mslto.defaults.call(this, props));
 
-        return new Proxy(this, {
-
-            set (target, key, val) {
-
-                if (!target.hasOwnProperty(key)) {
-
-                    Object.defineProperty(target, key, {
-
-                        value: val,
-
-                        writable: true
-                    });
-
-                } else if (target[key] !== val) {
-
-                    let type = Object.getPrototypeOf(target[key]);
-
-                    if (type = Object.getPrototypeOf(val)) {
-
-                        if (mslto.register.has(key)) {
-
-                            return !!(mslto.reMount(key, val));
-                        }
-
-                        return !!(target[key] = val);
-                    }
-                }
-
-                return true;
-            }
-        });
+        return this.reflection;
     }
 
     render (parent) {
@@ -193,7 +203,7 @@ class mslto {
 
     didMount () {
 
-        this.wrapper = document.querySelector(`#${this.id}`);
+        this.wrapper = document.querySelector("#" + this.id);
 
         for (const component of this.components) {
 
