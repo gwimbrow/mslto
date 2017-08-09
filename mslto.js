@@ -2,6 +2,8 @@ class mslto {
 
     static get register () {
 
+        // should create a unique application id
+
         this.ledger = this.ledger || new Map();
 
         return this.ledger;
@@ -142,13 +144,13 @@ class mslto {
 
                             const type = Object.getPrototypeOf(target[key]);
 
-                            const desc = Object.getOwnPropertyDescriptor(target, key);
+                            const descriptor = Object.getOwnPropertyDescriptor(target, key);
 
-                            if (type === Object.getPrototypeOf(val) || desc.configurable) {
+                            if (type === Object.getPrototypeOf(val) || descriptor.configurable) {
 
                                 if (mslto.register.has(key)) {
 
-                                    return !!(mslto.reMount(key, val));
+                                    return !!(mslto.reMount(key, val) && target.didMount());
                                 }
 
                                 return !!(target[key] = val);
@@ -200,7 +202,7 @@ class mslto {
 
     willMount () {
 
-        return !this.wrapper.innerHTML;
+        return !this.isMounted;
     }
 
     mount () {
@@ -225,7 +227,7 @@ class mslto {
 
     willUpdate () {
 
-        return true;
+        return this.isMounted;
     }
 
     didUpdate (key, val) {
