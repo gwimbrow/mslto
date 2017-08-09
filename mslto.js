@@ -1,28 +1,25 @@
 class mslto {
+
+    static get register () {
+
+        this.ledger = this.ledger || new Map();
+
+        return this.ledger;
+    }
     
     static defaults (props) {
 
         const defined = {};
-
-        if (!mslto.register) {
-
-            mslto.register = new Map();
-        }
         
         for (const key in props) {
 
-            if (!mslto.register.has(key)) {
-
-                mslto.register.set(key, []);
-            }
-
-            mslto.register.get(key).unshift(this);
+            mslto.register.set(key, (mslto.register.get(key) || []).concat([this]));
 
             defined[key] = {
                 
-                get: () => {
+                get () {
 
-                    if (props[key] === undefined) {
+                    if (props[key] === undefined && this.parent) {
 
                         props[key] = this.parent[key];
                     }
@@ -30,8 +27,23 @@ class mslto {
                     return props[key];
                 },
 
-                set: val => props[key] = val
-            }
+                set (val) {
+
+                    let success = !!(props[key] = val);
+
+                    if (mslto.register.has(key) && this.willUpdate()) {
+
+                        success = !!(this.wrapper.innerHTML = this.mount());
+
+                        if (success) {
+
+                            return this.didUpdate(key, val);
+                        }
+                    }
+
+                    return success;
+                }
+            };
         }
 
         return defined;
@@ -77,44 +89,17 @@ class mslto {
 
     static reMount(key, val) {
 
-        const components = mslto.register.get(key).slice();
-
-        const proxies = components.map(c => c.id);
-
-        const parent = components.filter(c => !c.parent).pop();
-
-        function update (child) {
-
-            if (child.components.length) {
-
-                for (const {id} of components) {
-
-                    let ndx = proxies.indexOf(id);
-
-                    if (ndx > -1) {
-
-                        let candidate = components[ndx];
-
-                        components.splice(ndx, 1);
-
-                        return !!(update(candidate));
-                    }
-                }
-            }
-
-            child[key] = val;
-
-            child.wrapper.innerHTML = child.mount();
-
-            return true;
-        }
-
-        return !!(update(parent || components.pop()));
+        return mslto.register.get(key).reduce((success, next) => !!(next[key] = val));
     }
 
     constructor (wrapper, ...args) {
 
         const props = args.pop();
+
+        if (args.some(prop => typeof prop !== "string")) {
+
+            throw new Error("passed props must only inclue string values");
+        }
 
         for (const inherited of args) {
 
@@ -219,5 +204,15 @@ class mslto {
     get isMounted () {
 
         return !!this.wrapper.innerHTML;
+    }
+
+    willUpdate () {
+
+        return true;
+    }
+
+    didUpdate (key, val) {
+
+        return true;
     }
 }
