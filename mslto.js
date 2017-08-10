@@ -41,7 +41,6 @@ class mslto {
                     // return success if all operations are successful
                     return !!(success);
                 }
-
             } });
         }, {});
     }
@@ -49,11 +48,9 @@ class mslto {
     static parse (template, ...interpolations) {
 
         return template.reduce((merge, slice, ndx) => merge + (component => {
-
             // TODO - introduce XSS protection / filtering for interpolated string values
-
             if (component.hasOwnProperty("wrapper")) {
-
+                // proceed if component is not mounted
                 if (component.willMount()) {
 
                     const id = `${this.constructor.name}-${component.constructor.name}-${ndx}`; // XSS
@@ -89,29 +86,29 @@ class mslto {
         // the set-accessor trap implemented by the component proxy
         function set (target, key, val) {
 
-            let filtered = val; // XSS filter prior to evaluation
+            let updated = val; // XSS filter prior to evaluation
             let success = true;
 
             if (!target.hasOwnProperty(key)) {
                 // assign a "local" property that will not trigger updates
                 success = Object.defineProperty(target, key, {
                     // properties assigned post-instantiation are configurable
-                    value: filtered, writable: true, configurable: true
+                    value: updated, writable: true, configurable: true
                 });
 
-            } else if (target[key] !== filtered) {
+            } else if (target[key] !== updated) {
                 // check property accessor description and value prototype
                 const desc = Object.getOwnPropertyDescriptor(target, key);
                 const type = Object.getPrototypeOf(target[key]);
                 // don't typecheck configurable properties
-                if (desc.configurable || type === Object.getPrototypeOf(filtered)) {
+                if (desc.configurable || type === Object.getPrototypeOf(updated)) {
                     // should this propery trigger a reMount?
                     if (!desc.configurable && mslto.register.has(key)) {                    
                         // operation should return success
-                        return mslto.reMount(key, filtered) && target.didMount();
+                        return mslto.reMount(key, updated) && target.didMount();
                     }
                     // update the component property
-                    success = target[key] = filtered;
+                    success = target[key] = updated;
 
                 } else {
 
@@ -127,13 +124,14 @@ class mslto {
             "components": { value: []                       },
             "parse":      { value: mslto.parse.bind(this)   },
             "reflection": { value: new Proxy(this, { set }) },
+            // wrapper property is writable but not configurable
             "wrapper":    { value: wrapper, writable: true  }
         // assign inherited property keys
         }, mslto.defaults.call(this, args.reduce((defs, prop) => {
 
             if (typeof prop !== "string") {
                 // some on-the-fly typechecking
-                throw new Error("passed props must only inclue string values");
+                throw new Error("inherited properties must only inclue string values");
             }
             // assign inherited properties a value of undefined
             return Object.assign(defs, { [prop]: undefined });
@@ -163,7 +161,6 @@ class mslto {
             return this.didMount();
         }
     }
-
     // returns true if the component has been mounted
     get isMounted ()  { return !!this.wrapper.innerHTML }
     // returns true if the component is not mounted and should mount
