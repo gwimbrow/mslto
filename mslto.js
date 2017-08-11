@@ -76,14 +76,13 @@ class mslto {
 
         return template.reduce((merge, slice, ndx) => {
 
-            return merge + read.call(this, values.shift(), ndx) + slice
+            return merge + read.call(this, values.shift(), ndx) + slice;
         });
     }
 
     static reMount(key, val) {
-        // return success if all operations are successful
         // bypasses the component proxy
-        // operations are performed in depth-first order
+        // operations performed in depth-first order
         const registrants = mslto.register.get(key);
 
         return registrants.reduce((success, component, ndx) => {
@@ -101,7 +100,7 @@ class mslto {
     }
 
     constructor (wrapper, ...args) {
-        // the set-accessor trap implemented by the component proxy
+        // set-accessor trap implemented by the component proxy
         function set (target, key, val) {
 
             let updated = val; // XSS filter prior to evaluation
@@ -137,6 +136,17 @@ class mslto {
             return !!(success);
         }
 
+        let props = args[args.length - 1];
+
+        if (props && typeof props === "object" && !Array.isArray(props)) {
+
+            props = args.pop();
+
+        } else {
+        
+            props = {};
+        }
+
         Object.defineProperties(this, Object.assign({
 
             "components": { value: []                       },
@@ -153,7 +163,7 @@ class mslto {
 
             return Object.assign(defs, { [prop]: undefined });
 
-        }, typeof args[args.length - 1] !== "string" ? args.pop() : {}))));
+        }, props))));
 
         return this.reflection;
     }
