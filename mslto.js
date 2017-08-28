@@ -6,22 +6,25 @@ class mslto {
 
         return this.store;
     }
-    
+
     static defaults (props) {
 
         return Object.keys(props).reduce((defs, key) => {
+
+            const registrants = mslto.register.get(key) || [];
             // unshift this component to the key register
-            mslto.register.set(key, [this].concat(mslto.register.get(key) || []));
+            mslto.register.set(key, [this].concat(registrants));
+
+            // TODO - read injected props as a symbol and get the value from any component in the register
 
             return Object.assign(defs, { [key]: {
 
                 get () {
-                    // inherited properties should be undefined at instantiation time
-                    if (props[key] === undefined && this.parent) {
-                        // synchronize with parent props
+
+                    if (props[key] === undefined && this.parent && this.parent.hasOwnProperty(key)) {
+                        // read the value from the parent component
                         props[key] = this.parent[key];
                     }
-
                     return props[key];
                 },
 
@@ -31,11 +34,10 @@ class mslto {
 
                         let success = props[key] = val;
 
-                        if (this.isMounted && mslto.register.has(key)) {
+                        if (this.isMounted) {
 
-                            success = this.wrapper.innerHTML = this.mount(); // XSS
+                            success = this.wrapper.innerHTML = this.mount();
                         }
-                        
                         if (success) {
 
                             return this.didUpdate(key, val);
@@ -46,13 +48,13 @@ class mslto {
         }, {});
     }
 
-    static parse (template, ...values) {
+    static parse (template, ...interpolations) {
 
-        function read (component, ndx) {
+        return template.reduce((merge, slice, ndx) => merge + (component => {
 
             if (component.hasOwnProperty("wrapper")) {
 
-                if (component.willMount()) {
+                if (!component.isMounted && component.willMount()) {
 
                     const id = `${this.id}-${component.constructor.name}-${ndx}`;
 
@@ -63,7 +65,7 @@ class mslto {
                     });
 
                     component.wrapper.setAttribute("id", component.id);
-                    component.wrapper.innerHTML = component.mount(); // XSS
+                    component.wrapper.innerHTML = component.mount();
 
                     this.components.push(component);
                 }
@@ -71,81 +73,85 @@ class mslto {
                 return component.wrapper.outerHTML
             }
             // may return a string
-            return component; // XSS
-        }
+            return component;
 
-        return template.reduce((merge, slice, ndx) => {
-
-            return merge + read.call(this, values.shift(), ndx) + slice;
-        });
+        })(interpolations.shift()) + slice);
     }
 
     static reMount(key, val) {
         // bypasses the component proxy
+        const registrants = mslto.register.get(key).slice();
         // operations performed in depth-first order
-        const registrants = mslto.register.get(key);
-
-        return registrants.reduce((success, component, ndx) => {
+        let success = registrants.reduce((success, component, ndx) => {
             // performing a set operation triggers didUpdate
-            success = success && !!(component[key] = val);
-            
-            if (success && ndx + 1 === registrants.length) {
-                // didMount cascades to all affected components
-                component.didMount();
-            }
-
-            return success;
+            return success && !!(component[key] = val);
 
         }, true);
+        // call didMount recursively for each component, popping off the candidates as we go.
+        // this way we can call didMount in the right order, while also initiating the cascade
+        // through a plurality of trees, while not re-mounting updated components.
+        while (success && registrants.length) {
+
+            const c = registrants.pop();
+
+            success = c.didMount();
+
+            registrants.forEach(({reflection}, ndx) => {
+
+                if (c.components.includes(reflection)) {
+
+                    registrants.splice(ndx, 1);
+                }
+            });
+        }
+        return !!(success);
     }
 
     constructor (wrapper, ...args) {
         // set-accessor trap implemented by the component proxy
         function set (target, key, val) {
 
-            let updated = val; // XSS filter prior to evaluation
             let success = true;
 
             if (!target.hasOwnProperty(key)) {
-                // assign a "local" property that will not trigger updates
-                success = Object.defineProperty(target, key, {
-                    // properties assigned post-instantiation are configurable
-                    value: updated, writable: true, configurable: true
-                });
 
-            } else if (target[key] !== updated) {
+                if (mslto.register.has(key)) {
+                    // don't overwrite the global state
+                    throw new Error(`cannot redefine prop ${key} tracked by global state`);
+
+                } else {
+                    // only defining one new prop here, but can still re-use defaults.
+                    // the only drawback here is the creation of a new closure scope
+                    // for -every- local prop, which is obviously not ideal. The alternative -
+                    // storing an dict with all of the instance props - is defeating to the
+                    // purpose of keeping these props private.
+                    Object.defineProperties(target, mslto.defaults.call(target, { [key]: val }));
+                }
+            } else if (target[key] !== val) {
                 // check property accessor description and value prototype
                 const desc = Object.getOwnPropertyDescriptor(target, key);
                 const type = Object.getPrototypeOf(target[key]);
 
-                if (desc.configurable || type === Object.getPrototypeOf(updated)) {
+                if (desc.configurable || type === Object.getPrototypeOf(val)) {
 
-                    if (!desc.configurable && mslto.register.has(key)) {                    
+                    if (mslto.register.has(key)) {                    
+                        // trigger updates for registered components
+                        success = mslto.reMount(key, val);
 
-                        return mslto.reMount(key, updated);
+                    } else {
+                        // updare only this component
+                        success = target[key] = val;
                     }
-
-                    success = target[key] = updated;
-
                 } else {
-
+                    // tracked props must pass value typecheck
                     throw new Error(`typecheck fails for prop ${key} with value ${val}; requires ${type.constructor.name}`);
                 }
             }
-
             return !!(success);
         }
-
         let props = args[args.length - 1];
 
-        if (props && typeof props === "object" && !Array.isArray(props)) {
-
-            props = args.pop();
-
-        } else {
-        
-            props = {};
-        }
+        props = (props && typeof props === "object" && !Array.isArray(props)) ? args.pop() : {};
 
         Object.defineProperties(this, Object.assign({
 
@@ -158,7 +164,7 @@ class mslto {
 
             if (typeof prop !== "string") {
                 // some on-the-fly typechecking
-                throw new Error("inherited properties must only inclue string values");
+                throw new Error("injected properties must be referenced with string values");
             }
 
             return Object.assign(defs, { [prop]: undefined });
@@ -168,7 +174,7 @@ class mslto {
         return this.reflection;
     }
 
-    render (parent) {
+    render (node) {
 
         if (this.isMounted || this.parent) {
 
@@ -183,7 +189,7 @@ class mslto {
             this.wrapper.setAttribute("id", this.id);
             this.wrapper.innerHTML = this.mount();
 
-            parent.appendChild(this.wrapper);
+            node.appendChild(this.wrapper);
 
             this.didMount();
         }
@@ -197,10 +203,12 @@ class mslto {
 
     didMount () {
         // update the component selector to match the rendered element
+        let success = !!(this.wrapper = document.querySelector("#" + this.id));
+
         return this.components.reduce((success, component) => {
 
             return success && !!(component.didMount());
 
-        }, !!(this.wrapper = document.querySelector("#" + this.id)));
+        }, success);
     }
 }
