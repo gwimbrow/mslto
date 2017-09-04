@@ -1,0 +1,8 @@
+{
+    "test": {
+        "component": "Test",
+        "config": {
+            "title": "this is a title"
+        }
+    }
+}
