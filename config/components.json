@@ -4,5 +4,11 @@
         "config": {
             "title": "this is a title"
         }
+    },
+    "test-child": {
+        "component": "TestChild",
+        "config": {
+            "subTitle": "this is a sub-title"
+        }
     }
 }

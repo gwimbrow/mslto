@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>mslto</title>
+</head>
+<body>
+    <div id="app"></div>
+    <script src="./dist/mslto.min.js"></script>
+    <script>
+
+        // create a new component to test
+        const test = mslto.create("test", document.createElement("main"));
+        // render to the DOM
+        test.render(document.querySelector("#app"));
+
+    </script>
+</body>
+</html>
