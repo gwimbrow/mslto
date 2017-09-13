@@ -1,14 +1,31 @@
 {
+    "defaults": {
+        "children": {
+            "value": []
+        },
+        "isMounting": {
+            "value": false, 
+            "writable": true
+        },
+        "isMounted": {
+            "value": false, 
+            "writable": true
+        },
+    },
     "test": {
         "component": "Test",
         "config": {
-            "title": "this is a title"
+            "title": {
+                "value": "this is a title"
+            }
         }
     },
     "test-child": {
         "component": "TestChild",
         "config": {
-            "subTitle": "this is a sub-title"
+            "subTitle": {
+                "value": "this is a sub-title"
+            }
         }
     }
 }

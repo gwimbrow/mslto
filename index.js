@@ -1,167 +1,148 @@
-// import component configuration
+import "babel-polyfill";
+
 import componentConfig from "./config/components";
-// re-export component modules
+
 export * from "./modules";
-// the component register is integral to the reMount / notifications pattern
-const register = new Map();
+
+export const register = new Map();
+
 // describe the component get/set-accessor pattern for observed properties
-function setDefault (node, config, key, val) {
-    // keep the node and configuration object private
-    return !!(Object.defineProperty(this, key, {
-        // just return the value
-        get () { return config[key] || config.reflector[key] },
-        // setting a default triggers updates - the set accessor will be
-        // triggered only if the value passes validation
+function setDefault (node, key, conf) {
+
+    return !!Object.defineProperty(this, key, {
+
+        get () { return conf.value },
+        
         set (val) {
-            // define a new property if requested
-            let success = val ? !!(node[key] = config[key] = val) : true;
-            // trigger any pre-update actions in this hook, which must return
-            // true if the update should proceed - up to now no values are set
-            success = !!(this.willUpdate(key, val));
             // components can reject an update
-            if (success) {
-                // assign the value to the node, and update the config
-                success = !!(node[key] = config[key] = val);
-                // if it is mounted, re-mount the component's node
+            if (conf.writable && this.willUpdate(key, val)) {
+                // assign the value to the node, and update the confif
+                conf.value = val;
+                node[key] = val;
+
                 if (this.isMounted) {
-                    // this will be triggered by mslto.reMount()
+                    // if it is mounted, re-mount the component's node
                     this.node.innerHTML = this.mount();
                 }
-                // immmediately trigger the didUpdate hook
-                this.didUpdate(key, val);
+
+                return this.didUpdate(key, val);
             }
-            // will return a boolean
-            return success;
         }
-    }));
+    });
 }
-// describe the get/set-accessor traps for the component proxy - used for
-// triggering updates for different notification groups, based on the property
-// key and each node's relationship in the DOM. property names may be reused
-// across disconnected portions of the DOM tree - we are concerned with knowing
-// which component was the first of any of these segments to have described the
-// property, because it is to this "root" node that each child component may
-// delegate a property lookup. whenever a lookup is performed by a child node,
-// the get-accessor trap performes a check to determine whether to delegate a
-// lookup to the parent node (if one exists - otherwise the prop will be,
-// accurately, undefined). If the lookup is performed, the node is added to the
-// appropriate notifications group identified with whichever node is the
-// aformentioned "root"
 
-// used to trace the origin of a property in the DOM
-function findProgenitor (key, node) {
+export function reMount (src, key, val) {
 
-    let progenitor = node;
+    const group = `${src.constructor.name}.${key}`;
 
-    while (node && node.hasOwnProperty(key) && node[key] === progenitor[key]) {
+    const subscribers = mslto.register.get(group).slice();
 
-        progenitor = node;
-        node = node.parent;
+    while (subscribers.length) {
+
+        let target = subscribers.pop();
+
+        target[key] = val;
     }
 
-    return progenitor;
+    return src.didMount();
+}
+
+function valuesFor (conf) {
+
+    return Object.keys(conf).reduce((defs, prop) => {
+
+        return Object.assign(defs, {
+            [prop]: {
+                value: conf[prop]
+            }
+        });
+    }, {});
+}
+
+function findSource (target) {
+    // else return falsish undefined
+    if (target.hasOwnProperty(key)) {
+
+        let src = target;
+        // src is undefined if parent is missing
+        while (src && src.hasOwnProperty(key)) {
+
+            src = src.parent;
+        }
+        return src;
+    }
 }
 
 function getAccessorTrap (target, key) {
 
-    // ha => the parent isn't yet defined at the time of mounting, so the get
-    // accessor trap will fail before it has a chance to succeed.
+    if (!target.hasOwnProperty(key)) {
 
-    // find the progenitor of this prop
-    const progenitor = findProgenitor(key, target.parent);
-    // this node doesn't have [key] - can it be inherited from a parent node?
-    if (!target.hasOwnProperty(key) && progenitor) {
-        // if the property can be inherited
-        if (progenitor.hasOwnProperty(key)) {
-            // set a new default property on this node
-            target.setDefault(key, progenitor[key]);
+        let source = findSource(target);
+
+        if (source) {
+            
+            let group = `${source.constructor.name}.${key}`;
+
+            let subscribers = mslto.register.get(group);
+
+            target.setDefault(key, source[key]);
+
+            if (subscribers) {
+
+                subscribers.push(target);
+
+            } else {
+
+                mslto.register.set(group, [target]);
+            }
         }
     }
-    // if the target received the default, and is about to mount
-    if (target.hasOwnProperty(key) && progenitor && target.isMounting) {
-        // groups are identified as a combination of progenitor and key
-        const group = `${progenitor.constructor.name}:${key}`;
-        // add this component to the correct notifications group
-        mslto.register.set(group, (mslto.get(group) || []).concat(target));
-    }
-    // if we have the property, just return it - otherwise it is undefined
+
     return target[key];
 }
 
 function setAccessorTrap (target, key, val) {
 
-    if (target.hasOwnProperty(key)) {
-        // is the property shared?
-        const progenitor = findProgenitor(key, target.parent);
+    if (!target.hasOwnProperty(key)) {
 
-        if (progenitor) {
-            // is the property registered?
-            if (mslto.register.has(`${progenitor.constructor.name}:${key}`)) {
-                // we need to trigger a re-mount
-                return mslto.remount(progenitor, key, val);
-            }
-        }
+        target.setDefault(key, { value: val });
 
     } else {
-        // nothing stopping us from setting a new default
-        return target.setDefault(key, val);
+
+        return target[key] = val;
     }
+
+    return true;
 }
 // facilitate component instantiations
-function create (type, node, config = {}) {
-    // lookup the component config
-    let candidate = componentConfig[type];
+export function create (type, node, config = {}) {
+    // question - how can you detect if a function is invoked with ".call" and a bound context?
+    const parent = this;
+    // JSON configuration
+    let target = componentConfig[type];
     // if the configuration includes defaults
-    if (candidate.config) {
+    if (target.config) {
         // apply the default config for the component constructor
-        // configuration described in code will mask default properties
-        config = Object.assign(candidate.config, config);
+        config = Object.assign(target.config, config);
         // target the component constructor
-        candidate = candidate.component;
+        target = target.component;
     }
     // instantiate a new component
-    const component = new mslto[candidate](node);
+    const component = new mslto[target](node);
     // define a component proxy
     const reflector = new Proxy(component, {
         // use common accessor traps
         set: setAccessorTrap,
         get: getAccessorTrap
     });
-    // curry the otherwise-exported setDefault
-    const setupProp = setDefault.bind(component, node, config);
+    // curry setDefault
+    const setDefault = setDefault.bind(component, node);
+    // transform accessors
+    const defaults = valuesFor({node, parent, reflector, setDefault});
+    // shared component defaults are described in JSON format
+    Object.defineProperties(component, componentConfig["defaults"], defaults);
 
-    Object.keys(Object.assign(config)).forEach(setupProp);
+    Object.keys(config).forEach(prop => setDefault(prop, config[prop]));
 
-    Object.defineProperties(component, {
-
-        "reflector": { value: reflector },
-        "setDefault": { value: setDefault }
-    });
-
-    return reflector;
+    return component;
 }
-
-// we need a way to track, unambiguously, which components belong to what groups
-// such that we should know, if a prop is updated on one component, all of those
-// that belong to the same group should recieve the update prop in the correct
-// sequence of events (willMount / willUpdate, mount, didUpdate, didMount).
-
-function reMount (progenitor, key, val) {
-
-    const group = `${progenitor.constructor.name}:${key}`;
-
-    const receivers = mslto.register.get(id).slice();
-
-    let component = recievers.pop();
-
-    while (receivers.length) {
-
-        component = receivers.pop();
-
-        component[key] = val;
-    }
-
-    component.didMount();
-}
-
-export { create, register, reMount };
