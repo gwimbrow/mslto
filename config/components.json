@@ -2,21 +2,14 @@
     "defaults": {
         "children": {
             "value": []
-        },
-        "isMounting": {
-            "value": false, 
-            "writable": true
-        },
-        "isMounted": {
-            "value": false, 
-            "writable": true
-        },
+        }
     },
     "test": {
         "component": "Test",
         "config": {
             "title": {
-                "value": "this is a title"
+                "value": "this is a title",
+                "writable": true
             }
         }
     },
@@ -24,7 +17,8 @@
         "component": "TestChild",
         "config": {
             "subTitle": {
-                "value": "this is a sub-title"
+                "value": "this is a sub-title",
+                "writable": true
             }
         }
     }
