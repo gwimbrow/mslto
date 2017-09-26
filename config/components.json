@@ -6,7 +6,7 @@
     },
     "test": {
         "component": "Test",
-        "config": {
+        "props": {
             "title": {
                 "value": "this is a title",
                 "writable": true
@@ -15,7 +15,7 @@
     },
     "test-child": {
         "component": "TestChild",
-        "config": {
+        "props": {
             "subTitle": {
                 "value": "this is a sub-title",
                 "writable": true
