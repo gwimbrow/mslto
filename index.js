@@ -4,61 +4,64 @@ import componentConfig from "./config/components";
 
 import Wrapper from "./lib/core/Wrapper";
 
-import {mapImports, mapObj} from "./lib/util";
-
 const context = require.context("./lib/components", true, /\.js$/);
 
-const components = mapImports(context, (item, key) => {
+const components = context.keys().reduce((imports, key) => {
 
-    let name = key.replace(/(^\.(\/|\\|\:)|\..*js$)/g, "");
+    const item = context(key);
 
-    return { [name]: item.default };
-});
+    return Object.assign(imports, {
 
-export const register = new Map();
+        [key.replace(/(^\.(\/|\\|\:)|\..*js$)/g, "")]: item.default
+    });
+}, {});
 
-export function reMount (src, key, val) {
+export function create ({parent, inherited, type, name, element, config = {}}) {
 
-    const group = `${src.name}.${key}`;
-
-    const subscribers = register.get(group).slice();
-
-    console.log(subscribers)
-
-    while (subscribers.length) {
-
-        let target = subscribers.pop();
-
-        target[key].value = val;
-    }
-}
-
-// facilitate component instantiations
-export function create (type, name, node, props = {}) {
-    // JSON configuration
     let target = componentConfig[type];
-    // if the configuration includes defaults
-    if (target.props) {
-        // apply the default props for the component constructor
-        props = Object.assign(target.props, props);
-        // target the component constructor
+
+    if (target.config) {
+
+        config = Object.assign(target.config, config);
+
         target = target.component;
     }
 
-    const accessors = { create, name, node };
+    if (inherited) {
 
-    if (this instanceof Wrapper) {
+        inherited = Object.create(inherited);
 
-        accessors.parent = this;
+        config = Object.assign(inherited, config);
+    }
+
+    const defaults = {
+
+        "children": { value: [] },
+
+        "element": {
+
+            get () {
+
+                let el = document.getElementById(name);
+
+                if (el) {
+
+                    element = el;
+                }
+
+                return element;
+            }
+        },
+
+        "name": { value: name }
+    };
+
+    if (parent) {
+
+        defaults.parent = { value: parent };
     }
 
     const Constructor = components[target];
 
-    const defaults = Object.assign(componentConfig["defaults"], mapObj(accessors, (item, key) => {
-        return {[key]: {value: item}};
-    }));
-
-    const component = new Constructor(defaults, props);
-
-    return component;
+    return new Constructor(defaults, config);
 }

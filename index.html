@@ -2,9 +2,28 @@
 <html>
 <head>
     <title>mslto</title>
-    <script defer src="./dist/mslto.min.js"></script>
 </head>
 <body>
     <div id="app"></div>
+    <script src="./dist/mslto.min.js"></script>
+    <script>
+
+    	const main = document.createElement("main");
+    	
+    	const parent = mslto.create({
+			name: "father",
+    		type: "Parent",
+    		element: main
+    	});
+
+    	parent.element.setAttribute("id", parent.name);
+
+    	parent.element.innerHTML = parent.mount();
+
+    	document.body.appendChild(main);
+
+    	parent.didMount();
+
+    </script>
 </body>
 </html>

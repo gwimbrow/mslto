@@ -1,0 +1,9 @@
+{
+	"Parent": {
+		"component": "Parent",
+		"config": {
+			"color": "blue"
+		}
+	},
+	"Child": "Child"
+}
