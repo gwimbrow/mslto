@@ -5,7 +5,7 @@ module.exports = {
     devtool: "#source-map",
     entry: [
         "babel-polyfill",
-        path.resolve(__dirname, "./index.js")
+        path.resolve(__dirname, "lib", "index.js")
     ],
     module: {
         rules: [
