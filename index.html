@@ -16,11 +16,9 @@
     		element: main
     	});
 
-    	parent.element.setAttribute("id", parent.name);
+        document.querySelector("#app").appendChild(main);
 
-    	parent.element.innerHTML = parent.mount();
-
-    	document.querySelector("#app").appendChild(main);
+    	parent.update();
 
     	parent.didMount();
 
