@@ -8,19 +8,18 @@
     <script src="./dist/mslto.min.js"></script>
     <script>
 
-    	const main = document.createElement("div");
+        const target = document.querySelector("#app");
 
-    	const parent = mslto.create({
-			name: "father",
-    		type: "Parent",
-    		element: main
-    	});
+        const params = {
 
-        document.querySelector("#app").appendChild(main);
+            type: "AppFrame",
+            name: "master",
+            node: document.createElement("article")
+        };
 
-    	parent.update();
-
-    	parent.didMount();
+    	mslto
+            .create(params)
+            .render(target);
 
     </script>
 </body>

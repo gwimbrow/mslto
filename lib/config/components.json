@@ -1,9 +1,14 @@
 {
-	"Parent": {
-		"component": "Parent",
+	"AppFrame": {
+		"component": "Frame",
 		"config": {
 			"color": "blue"
 		}
 	},
-	"Child": "Child"
+	"AppChart": {
+		"component": "Chart",
+		"config": {
+			"units": "mm"
+		}
+	}
 }
