@@ -7,20 +7,16 @@
     <main id="app"></main>
     <script src="./dist/mslto.min.js"></script>
     <script>
-
-        const target = document.querySelector("#app");
-
+    (function init () {
+        // a set of parameters to define the application's "root" component
         const params = {
-
             type: "AppFrame",
             name: "master",
             node: document.createElement("article")
         };
-
-    	mslto
-            .create(params)
-            .render(target);
-
+        // create the "root" component and append it to the given node
+    	mslto.init(document.querySelector("#app"), params);
+    })();
     </script>
 </body>
 </html>
