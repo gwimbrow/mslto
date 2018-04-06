@@ -1,14 +1,15 @@
 {
-	"AppFrame": {
-		"component": "Frame",
+	"page": {
+		"component": "Page",
 		"config": {
+			"title": "page title",
 			"color": "blue"
 		}
 	},
-	"AppChart": {
-		"component": "Chart",
+	"section": {
+		"component": "Section",
 		"config": {
-			"units": "mm"
+			"header": "section header"
 		}
 	}
 }

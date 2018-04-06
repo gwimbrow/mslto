@@ -1,17 +1,18 @@
 const path = require("path");
 const webpack = require("webpack");
 
+function resolve(...parts) {
+    return path.resolve(__dirname, ...parts);
+}
+
 module.exports = {
     devtool: "#source-map",
-    entry: [
-        "babel-polyfill",
-        path.resolve(__dirname, "lib", "index.js")
-    ],
+    entry: resolve("lib", "index.js"),
     module: {
         rules: [
             {
                 test: /\.js$/,
-                exclude: path.resolve(__dirname, "node_modules"),
+                exclude: resolve("node_modules"),
                 use: {
                     loader: "babel-loader",
                     options: {
@@ -27,7 +28,7 @@ module.exports = {
         filename: "mslto.min.js",
         library: "mslto",
         libraryTarget: "umd",
-        path: path.resolve(__dirname, "dist")
+        path: resolve("dist")
     },
     plugins: [
         new webpack.optimize.UglifyJsPlugin({
@@ -37,8 +38,8 @@ module.exports = {
     ],
     resolve: {
         modules: [
-            path.resolve(__dirname, "lib"),
-            path.resolve(__dirname, "node_modules")
+            resolve("lib"),
+            resolve("node_modules")
         ]
     }
 };
