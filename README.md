@@ -1,0 +1,8 @@
+misəl-tō
+
+This library provides a branching delegated-lookup data model for developing reactive component templates. JavaScript's "pseudoclassical" "inheritance" pattern is leveraged in mantaining component dependencies on properties in the application's data model. The tight coupling of data "nodes" to component instances forms the basis of a reasonable and lightweight solution for managing reactivity and application "state".
+
+Component classes are composable entities. Any properties in the application state tree that are referenced in the component's mounting step trigger the inclusion of that instance in a register that receives updates when the referenced property is changed. Register groups are defined by "progenitor" and "property" naming tuples, the progenitor being the component where a property is defined, as opposed to a child component that is referencing the value. When updates do occur, components in the register group are re-mounted in-order, starting with the leaves of the data tree. The nested component templates are composed, until the progenitor component is rendered in the DOM.
+
+Component instances are created with a "props" property, which is a Proxy object used to query values in the application state. The component framework is cognizent of "get", "set", and "deleteProperty" events. Setting a property for a component higher up the component tree will cause updates for child components referencing that property during their mounting step. Downstread property updates, additions, or deletions have no effect on componentes higher in the model. Child components are not permitted to mask an existing property name, but a property with the same name can exist in disasocciated branches of the application state.
+
