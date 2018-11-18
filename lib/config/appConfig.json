@@ -1,0 +1,38 @@
+{
+	"versions": [
+		{
+			"semver": {
+				"major": 0,
+				"minor": 0,
+				"patch": 1
+			},
+			"name": "germ",
+			"tags": [
+				"develop",
+				"unstable"
+			],
+			"components": [			
+				{
+					"type": "page",
+					"instanceOf": "Page",
+					"config": {
+						"title": "page title",
+						"settings": {
+							"color": "blue"
+						}
+					}
+				},
+				{
+					"type": "section",
+					"instanceOf": "Section",
+					"config": {
+						"header": "section header",
+						"settings": {
+							"color": "red"
+						}
+					}
+				}
+			]
+		}
+	]
+}

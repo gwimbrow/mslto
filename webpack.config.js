@@ -6,8 +6,8 @@ function resolve(...parts) {
 }
 
 module.exports = {
-    devtool: "#source-map",
     entry: resolve("lib", "index.js"),
+    mode: "development",
     module: {
         rules: [
             {
@@ -17,7 +17,7 @@ module.exports = {
                     loader: "babel-loader",
                     options: {
                         presets: [
-                            "env"
+                            "@babel/env"
                         ]
                     }
                 }
@@ -30,12 +30,6 @@ module.exports = {
         libraryTarget: "umd",
         path: resolve("dist")
     },
-    plugins: [
-        new webpack.optimize.UglifyJsPlugin({
-            mangle: false,
-            sourceMap: true
-        })
-    ],
     resolve: {
         modules: [
             resolve("lib"),
