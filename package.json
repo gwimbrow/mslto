@@ -1,0 +1,26 @@
+{
+  "name": "mslto",
+  "version": "1.0.0",
+  "description": "prototypal reactivity",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "webpack --mode production"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gwimbrow/mslto.git"
+  },
+  "author": "wimbrow@protonmail.com",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.12.10",
+    "@babel/preset-env": "^7.12.11",
+    "babel-loader": "^8.2.2",
+    "chai": "^4.2.0",
+    "core-js": "^3.8.2",
+    "mocha": "^8.2.1",
+    "sinon": "^9.2.3",
+    "webpack": "^5.12.3",
+    "webpack-cli": "^4.3.1"
+  }
+}
