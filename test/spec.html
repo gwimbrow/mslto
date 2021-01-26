@@ -170,6 +170,48 @@
               var removed = instance.props.foo.pop();
               expect(removed).to.equal(model.foo.pop());
             });
+            it('should trigger on Array.prototype.splice()', function (done) {
+              let count = 0;
+              var model = { foo: [0, 1] };
+              var Provider = mslto.Provider;
+              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue, deleted) {
+                expect(key).to.deep.equal(['foo', count]);
+                switch(count++) {
+                  case 0: {
+                    expect(oldValue).to.equal(0);
+                    expect(newValue).to.equal(1);
+                    break;
+                  }
+                  case 1: {
+                    expect(oldValue).to.equal(1);
+                    expect(newValue).to.equal(undefined);
+                    expect(deleted).to.equal(true);
+                    done();
+                  }
+                }
+              });
+              instance.props.foo.splice(0, 1);
+            });
+            it('should not return Proxy objects from the built-in Array methods "pop", "shift", or "splice"', function () {
+              var model = { foo: [{ bar: 'baz' }, { boom: 'bap' }, { zig: 'zag' }] };
+              var Provider = mslto.Provider;
+              var spy = sinon.spy();
+              var instance = new Provider(JSON.stringify(model), spy);
+              // last element removed; call count = 1
+              var popped = instance.props.foo.pop();
+              // first element is removed; call count = 2
+              // second element is shifted to first index; call count = 3
+              var shifted = instance.props.foo.shift();
+              // first element is removed; call count = 4
+              var spliced = instance.props.foo.splice(0, 1);
+              expect(spy.callCount).to.equal(4);
+              // updating the values for any of the removed elements should not trigger reactivity.
+              // furthermore, we should be allowed to delete properties in those objects.
+              delete popped.zig;
+              delete shifted.bar;
+              delete spliced.boom;
+              expect(spy.callCount).to.equal(4);
+            });
             it('should trigger on Array.prototype.push()', function (done) {
               var model = { foo: [] };
               var Provider = mslto.Provider;
@@ -213,28 +255,6 @@
                 done();
               });
               instance.props.foo.unshift('bar');
-            });
-            it('should trigger on Array.prototype.splice()', function (done) {
-              let count = 0;
-              var model = { foo: [0, 1] };
-              var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue, deleted) {
-                expect(key).to.deep.equal(['foo', count]);
-                switch(count++) {
-                  case 0: {
-                    expect(oldValue).to.equal(0);
-                    expect(newValue).to.equal(1);
-                    break;
-                  }
-                  case 1: {
-                    expect(oldValue).to.equal(1);
-                    expect(newValue).to.equal(undefined);
-                    expect(deleted).to.equal(true);
-                    done();
-                  }
-                }
-              });
-              instance.props.foo.splice(0, 1);
             });
             it('should trigger on Array.prototype.fill()', function (done) {
               var model = { foo: ['bar'] };

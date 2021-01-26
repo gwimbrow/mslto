@@ -55,7 +55,10 @@ function reject () {
 function owns (target, key) {
     try {
         return Object.prototype.hasOwnProperty.call(
-            target,
+            target === ReactiveArray.prototype ?
+                Array.prototype :
+                target
+            ,
             key
         );
     } catch (exception) {
@@ -91,6 +94,31 @@ function getReactiveTarget (chained = [], props) {
         (t, k) => t[k],
         props
     );
+}
+
+function unlink (target) {
+    const result = (
+        target &&
+        target[PROXIED]
+    ) || target;
+    return Array.isArray(result) ?
+        result.map(unlink) :
+        result;
+}
+
+class ReactiveArray extends Array {
+    static get [Symbol.species] () {
+        return Array;
+    }
+    pop () {
+        return unlink(super.pop());
+    }
+    shift () {
+        return unlink(super.shift());
+    }
+    splice (...args) {
+        return unlink(super.splice(...args));
+    }
 }
 
 function link (propChanged, props, ref, parent) {
@@ -164,20 +192,31 @@ function link (propChanged, props, ref, parent) {
                     typeof target[key] === 'object' &&
                     target[key] !== null
                 ) {
-                    const nestedProto = target[key].constructor.prototype;
+                    let nested = target[key];
+                    const nestedProto = nested.constructor.prototype;
+                    const isNestedArray = (
+                        nestedProto === Array.prototype ||
+                        nestedProto === ReactiveArray.prototype
+                    );
                     const nestedContext = Object.assign(
                         {},
                         this,
                         { chained }
                     );
+                    if (nestedProto === Array.prototype) {
+                        Object.setPrototypeOf(
+                            nested,
+                            ReactiveArray.prototype
+                        );
+                    }
                     return new Proxy(
-                        target[key],
+                        nested,
                         {
                             defineProperty () { reject(); },
                             setPrototypeOf () { reject(); },
                             'get': handler.get.bind(nestedContext),
                             'set': handler.set.bind(nestedContext),
-                            'deleteProperty': nestedProto === Array.prototype ?
+                            'deleteProperty': isNestedArray ?
                                 // delete functionality is required for arrays,
                                 // to permit using methods like pop()
                                 (function (t, k) {
@@ -217,6 +256,9 @@ function link (propChanged, props, ref, parent) {
             return target[key];
         },
         set (target, key, value) {
+            // sometimes we can get a proxy re-assigned to a new array index,
+            // for example after calling Array.prototype.reverse()
+            const cleanValue = unlink(value);
             const isArray = Array.isArray(target);
             const proto = target.constructor.prototype;
             if (
@@ -270,14 +312,14 @@ function link (propChanged, props, ref, parent) {
                         key
                     ),
                     target[key],
-                    value
+                    cleanValue
                 );
             } else if (parent) {
                 return parent.props[CHANNEL](
                     'set',
                     this.ref || ref.self,
                     key,
-                    value
+                    cleanValue
                 );
             }
             target[
@@ -285,7 +327,7 @@ function link (propChanged, props, ref, parent) {
                 isIndex(key) ?
                     Number(key) :
                     key
-            ] = value;
+            ] = cleanValue;
             return true;
         }
     }

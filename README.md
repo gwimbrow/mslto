@@ -104,7 +104,8 @@ const node = new mslto.Provider(
   }
 );
 // let's update the value of a prop in the reactive state.
-// note that reactivity is established for our node through the following 'set' operation, which also triggers its propChangedCallback
+// note that reactivity is established through the following 'set' operation,
+// which also triggers the node's propChangedCallback
 node.props.foo[0].bar = 'bap';
 ```
 
@@ -120,10 +121,6 @@ node.props.foo = 'baz';
 node.data // => '{ "foo": "baz" }'
 ```
 
-## Supported Browsers
-
-mslto is architected with the built-in [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) object, and therefore cannot support obsolete browsers like Internet Explorer. At this time, there are no plans for developing anything like a "compatibility mode" for IE 11.
-
 ## Rationale
 
 mslto models data in a tree structure wherein each node "owns" a part of the whole application "state", whilst making that data available for any of its child nodes. Because of how the system leverages prototypal chaining, there is no need to explicitly pass props down from one node to another. The mslto application state neither has to reflect the structure of the DOM nor align with any particular framework or architecture governing UI components.
@@ -133,3 +130,7 @@ UI components and other elements interact with data by referencing the reactive 
 The way which UI components are built, including how they respond to changes (for example, through `observedAttributes` and the `attributeChangedCallback`, in the case of [custom elements](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements)) is outside the scope for the reactivity engine which mslto provides. All that is important is for a particular component or element to reference reactive data through a mslto node's `props`, and for the corresponding `propChangedCallback` to in some way update that component when changes are registered.
 
 mslto enforces a strict separation-of-concerns between the source of data and the reactive "state" which it manages. Data provided to a mslto node must be a stringified JSON object, rather than a native JavaScript object. Likewise, the data exposed by a node through the `data` accessor are provided as serialized objects. If the application requires data to be represented in some other form or type - such as date objects, which cannot be reliably serialized - that logic should be defined within the scope of the given UI component or other element.
+
+## Supported Browsers
+
+mslto is architected with the built-in [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) object, and therefore cannot support obsolete browsers like Internet Explorer. At this time, there are no plans for developing anything like a "compatibility mode" for IE 11.
