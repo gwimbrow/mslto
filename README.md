@@ -1,7 +1,7 @@
 # misəl-tō
-**mslto** is a dynamic reactivity engine based on prototype chaining. mslto provides a stand-alone reactivity module for browser-based applications that tracks and responds to changes through a tree-like data structure. mslto is not an application framework; the engine only handles reactivity, and can (in theory) work in tandem with any other browser application framework.
+**mslto** is a dynamic reactivity engine based on prototype chaining. mslto provides a standalone reactivity module for browser-based applications that tracks and responds to changes through a tree-like data structure. mslto is not an application framework; the engine only handles reactivity, and can (in theory) work in tandem with any other browser-based application technology.
 
-## concepts
+## Explainer
 A mslto tree begins with a root node, instantiated with `mslto.Provider`. Children are added to the tree by calling an existing node's `create()` method. Reactive data are referenced through a node's `props` accessor.
 
 ```js
@@ -25,7 +25,7 @@ parent.props.boom // => undefined
 
 Reactivity is established on the fly, whenever any node references any property that is "visible" through its `props` object, following the rule of prototypal chaining (that is, if the referenced property exists somewhere in the tree structure either belonging to or "above" that object: see [this explainer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Inheritance_and_the_prototype_chain) if prototypal inheritance is confusing).
 
-In mslto, nodes delegate both *get* and *set* operations to their parent if they do not own a referenced property. For vanilla JavaScript objects, a *set* operation instead defines a new property for a child, rather than updating that property on the parent:
+In mslto, nodes delegate both *get* and *set* operations to an ancestor if they do not own a referenced property. For vanilla JavaScript objects, a *set* operation instead defines a new property for a child, rather than updating that property on the ancestor:
 
 ```js
 // in vanilla JavaScript:
@@ -51,20 +51,25 @@ child.props.foo = 'baz'
 parent.props.foo // => 'baz'
 ```
 
-Unlike vanilla JavaScript, mslto does not allow new properties to be defined post-instantiation of a node. Elements belonging to arrays can be added, removed, and re-ordered, but objects which are elements of arrays are subject to the same limitations:
+mslto enforces a strict separation-of-concerns between the source of data and the reactive state it manages. Data provided to a mslto node must be stringified JSON (objects, not arrays), rather than native JavaScript objects. Likewise, data exposed by nodes through the `data` accessor are provided as serialized JSON objects. If some other application component requires data in a form or type which is not native to the JSON spec - such as date objects, which cannot be reliably serialized - that transformation logic should be defined within the scope of said component. It's a good idea to define a JSON schema model for each mslto node in the application state.
+
+Finally, unlike vanilla JavaScript, mslto does not allow new reactive properties to be added or removed following the instantiation of a node. Elements belonging to arrays can be added, removed, and re-ordered, but objects which are elements of arrays are subject to the same limitations:
 
 ```js
 const node = new mslto.Provider(JSON.stringify({ foo: [] }));
 // this will throw an error
 delete node.props.foo
+// this will fail silently
+node.props.something = 'whatever'
 // these are permitted
 node.props.foo.push({ bar: 'baz' }, { boom: 'bap' });
 node.props.foo.reverse();
 node.props.foo.pop();
-// but this will also throw an error
+// this will also throw an error
 delete node.props.foo[0].boom
+// this will also fail
+node.props.foo[0].zig = 'zag';
 ```
-
 
 ### Responding to Changes
 The (optional) callback function provided for each node works in much the same way as the standard [attributeChangedCallback](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements#using_the_lifecycle_callbacks) for custom elements.
@@ -127,9 +132,7 @@ mslto models data in a tree structure wherein each node "owns" a part of the who
 
 UI components and other elements interact with data by referencing the reactive `props` object through any of the nodes which together form the mslto tree structure. Once reactivity is established through a node for a given property in the application state, future changes to that property trigger the node's `propChangedCallback` function, which may in turn update a UI component.
 
-The way which UI components are built, including how they respond to changes (for example, through `observedAttributes` and the `attributeChangedCallback`, in the case of [custom elements](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements)) is outside the scope for the reactivity engine which mslto provides. All that is important is for a particular component or element to reference reactive data through a mslto node's `props`, and for the corresponding `propChangedCallback` to in some way update that component when changes are registered.
-
-mslto enforces a strict separation-of-concerns between the source of data and the reactive "state" which it manages. Data provided to a mslto node must be a stringified JSON object, rather than a native JavaScript object. Likewise, the data exposed by a node through the `data` accessor are provided as serialized objects. If the application requires data to be represented in some other form or type - such as date objects, which cannot be reliably serialized - that logic should be defined within the scope of the given UI component or other element.
+How UI components are built, including how they respond to changes (for example, through `observedAttributes` and the `attributeChangedCallback`, in the case of [custom elements](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements),) is outside the scope of the reactivity engine which mslto provides. All that is important is for a particular component or element to reference reactive data through a mslto node's `props`, and for the corresponding `propChangedCallback` to in some way update that component when changes are registered.
 
 ## Supported Browsers
 

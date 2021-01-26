@@ -208,6 +208,8 @@ function link (propChanged, props, ref, parent) {
                             nested,
                             ReactiveArray.prototype
                         );
+                    } else {
+                        Object.preventExtensions(nested)
                     }
                     return new Proxy(
                         nested,
