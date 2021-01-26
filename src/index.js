@@ -329,6 +329,11 @@ export class Provider {
                         ));
                     }
                 },
+                data: {
+                    get () {
+                        return JSON.stringify(this.props[PROXIED]);
+                    }
+                },
                 props: {
                     value: props &&
                         props[PROXIED] ?

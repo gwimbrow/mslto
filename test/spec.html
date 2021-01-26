@@ -33,11 +33,12 @@
           });
         });
         describe('Provider Instances', function () {
-          it('should expose "create" and "props" properties', function () {
+          it('should expose "create", "data", and "props" properties', function () {
             var Provider = mslto.Provider;
             var instance = new Provider('{}');
             expect(instance).to.have.property('create');
             expect(instance).to.have.property('props');
+            expect(instance).to.have.property('data');
           });
           it('should accept only JSON data as props', function () {
             var Provider = mslto.Provider;
@@ -45,6 +46,12 @@
             expect(new Provider('{"foo": "bar", "boom": ["bap"]}')).to.be.ok;
             expect(() => new Provider('[]')).to.throw('Props cannot be an array');
             expect(() => new Provider('foo')).to.throw();
+          });
+          it('should expose serialized data through the "data" accessor', function () {
+            var model = { foo: 'bar' };
+            var Provider = mslto.Provider;
+            var instance = new Provider(JSON.stringify(model));
+            expect(instance.data).to.equal(JSON.stringify(model));
           });
           it('should allow creating nodes with no props and no callback function', function () {
             var Provider = mslto.Provider;
