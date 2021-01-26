@@ -63,8 +63,12 @@ function owns (target, key) {
     }
 }
 
-function isNumber (key) {
-    return isNaN(Number(key)) === false;
+function isIndex (key) {
+    const n = Number(key);
+    return (
+        Number.isInteger(n) &&
+        n >= 0
+    );
 }
 
 function format(proto, chained = [], key) {
@@ -74,7 +78,7 @@ function format(proto, chained = [], key) {
     ) === false) {
         return [
             ...chained,
-            isNumber(key) ?
+            isIndex(key) ?
                 Number(key) :
                 key
         ];
@@ -177,7 +181,7 @@ function link (propChanged, props, ref, parent) {
                                 // delete functionality is required for arrays,
                                 // to permit using methods like pop()
                                 (function (t, k) {
-                                    if (isNumber(k)) {
+                                    if (isIndex(k)) {
                                         fix(
                                             'delete',
                                             ref.self,
@@ -199,7 +203,7 @@ function link (propChanged, props, ref, parent) {
                 }
                 return target[
                     isArray &&
-                    isNumber(key) ?
+                    isIndex(key) ?
                         Number(key) :
                         key
                 ];
@@ -251,7 +255,7 @@ function link (propChanged, props, ref, parent) {
                     // the target is an array, and the key is an index value
                     (
                         isArray &&
-                        isNumber(key)
+                        isIndex(key)
                     )
                 )
             ) {
@@ -277,7 +281,7 @@ function link (propChanged, props, ref, parent) {
             }
             target[
                 isArray &&
-                isNumber(key) ?
+                isIndex(key) ?
                     Number(key) :
                     key
             ] = value;
