@@ -1,19 +1,26 @@
 # misəl-tō
-**mslto** is a dynamic reactivity engine based on prototype chaining. mslto provides a stand-alone reactivity module for browser-based applications that tracks and responds to changes through tree-like data structures. mslto is not a framework for producing web components, nor does it communicate with server-side APIs; mslto handles a specific set of concerns - reactivity - for an application, and can work in tandem with any UI/AJAX solution.
+**mslto** is a dynamic reactivity engine based on prototype chaining. mslto provides a stand-alone reactivity module for browser-based applications that tracks and responds to changes through a tree-like data structure. mslto is not an application framework; the engine only handles reactivity, and can (in theory) work in tandem with any other browser application framework.
 
 ## concepts
 A mslto tree begins with a root node, instantiated with `mslto.Provider`. Children are added to the tree by calling an existing node's `create()` method. Reactive data are referenced through a node's `props` accessor.
 
 ```js
-// example instantiation of a parent "root" node and child node
+// data provided for mslto nodes are stringified JSON
 const parentProps = JSON.stringify({ foo: 'bar' });
 const childProps = JSON.stringify({ boom: 'bap' });
-const propChangedCallback = function (key, oldValue, newValue, deleted) {
-  // do something
+// a callback triggered whenever any reactive prop the node has referenced changes
+function propChangedCallback (key, oldValue, newValue, deleted) {
+  // see below for documentation of the propChangedCallback arguments
 };
-// note that the same propChangedCallback can be provided to multiple nodes
-const parent = new mslto.Provider(parentProps, propChangedCallback);
+// both props and propChangedCallback are optional
+const parent = new mslto.Provider(parentProps);
 const child = parent.create(childProps, propChangedCallback);
+// each node exposes a 'props' accessor for reactive data
+// child nodes can reference data belonging to a parent node, or any node further "up" the tree
+child.props.foo // => 'bar'
+parent.props.foo = 'baz' // => triggers propChangedCallback
+// parent nodes cannot reference properties belonging to nodes further "down" the tree
+parent.props.boom // => undefined
 ```
 
 Reactivity is established on the fly, whenever any node references any property that is "visible" through its `props` object, following the rule of prototypal chaining (that is, if the referenced property exists somewhere in the tree structure either belonging to or "above" that object: see [this explainer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Inheritance_and_the_prototype_chain) if prototypal inheritance is confusing).
@@ -44,7 +51,22 @@ child.props.foo = 'baz'
 parent.props.foo // => 'baz'
 ```
 
-## Responding to Changes
+Unlike vanilla JavaScript, mslto does not allow new properties to be defined post-instantiation of a node. Elements belonging to arrays can be added, removed, and re-ordered, but objects which are elements of arrays are subject to the same limitations:
+
+```js
+const node = new mslto.Provider(JSON.stringify({ foo: [] }));
+// this will throw an error
+delete node.props.foo
+// these are permitted
+node.props.foo.push({ bar: 'baz' }, { boom: 'bap' });
+node.props.foo.reverse();
+node.props.foo.pop();
+// but this will also throw an error
+delete node.props.foo[0].boom
+```
+
+
+### Responding to Changes
 The (optional) callback function provided for each node works in much the same way as the standard [attributeChangedCallback](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements#using_the_lifecycle_callbacks) for custom elements.
 
 When it is invoked, `this` points to the Provider instance which received the callback at instantiation time (meaning it is bound to the node returned by either `new mslto.Provider(props, propChangedCallback)` or `parent.create(props, propChangedCallback)`). The same callback function can be shared by any number of nodes, and will by called with the appropriate context. The callback accepts up to four arguments:
@@ -68,6 +90,35 @@ When it is invoked, `this` points to the Provider instance which received the ca
 * **deleted**
 
   This argument will be `true` only when the property in question is an element of an array that was removed by an operation like `Array.prototype.pop()`. Note that while array elements can be removed and re-ordered, mslto does not allow deleting object properties.
+
+```js
+const node = new mslto.Provider(
+  JSON.stringify({ foo: [{ bar: 'baz' }] }),
+  function (key, oldValue, newValue, deleted) {
+    // when the function is triggered by the operation below,
+    // this = node
+    // key = ['foo', 0, 'bar']
+    // oldValue = 'baz'
+    // newValue = 'bap'
+    // deleted = false
+  }
+);
+// let's update the value of a prop in the reactive state.
+// note that reactivity is established for our node through the following 'set' operation, which also triggers its propChangedCallback
+node.props.foo[0].bar = 'bap';
+```
+
+### Data Persistence
+At some point, you'll want to get a copy of the data object belonging to some node in the mslto tree, perhaps to include in a network request to a back-end API. mslto nodes expose a `data` accessor for this purpose, which returns a serialized copy of their reactive state:
+
+```js
+// the props passed to a node at instantiation time must be a stringified JSON object
+const node = new mslto.Provider(JSON.stringify({ foo: 'bar' }));
+// the reactive data may be updated
+node.props.foo = 'baz';
+// then retrieved in serialized form, ready to be sent elsewhere by the application
+node.data // => '{ "foo": "baz" }'
+```
 
 ## Supported Browsers
 

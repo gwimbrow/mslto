@@ -220,7 +220,8 @@ function link (propChanged, props, ref, parent) {
             const isArray = Array.isArray(target);
             const proto = target.constructor.prototype;
             if (
-                // do not allow overwriting properties whose values are objects
+                // do not allow overwriting nested objects
+                isArray === false &&
                 typeof target[key] === 'object'
             ) {
                 return false;
