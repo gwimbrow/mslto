@@ -6,15 +6,15 @@ A mslto tree begins with a root node, instantiated with `mslto.Provider`. Childr
 
 ```js
 // data provided for mslto nodes are stringified JSON
-const parentProps = JSON.stringify({ foo: 'bar' });
-const childProps = JSON.stringify({ boom: 'bap' });
+const parentProps = JSON.stringify({ foo: 'bar' })
+const childProps = JSON.stringify({ boom: 'bap' })
 // a callback triggered whenever any reactive prop the node has referenced changes
 function propChangedCallback (key, oldValue, newValue, deleted) {
   // see below for documentation of the propChangedCallback arguments
-};
+}
 // both props and propChangedCallback are optional
-const parent = new mslto.Provider(parentProps);
-const child = parent.create(childProps, propChangedCallback);
+const parent = new mslto.Provider(parentProps)
+const child = parent.create(childProps, propChangedCallback)
 // each node exposes a 'props' accessor for reactive data
 // child nodes can reference data belonging to a parent node, or any node further "up" the tree
 child.props.foo // => 'bar'
@@ -23,18 +23,28 @@ parent.props.foo = 'baz' // => triggers propChangedCallback
 parent.props.boom // => undefined
 ```
 
+Instantiated nodes can be assigned an optional `name` property. Named nodes can then be referenced with `mslto.lookup`
+
+```js
+const node = new mslto.Provider()
+// once a name has been assigned, it can neither be changed nor redacted
+node.name = 'state'
+// this is a handy way for UI components to reference nodes in the mslto tree
+mslto.lookup('state') === node // => true
+```
+
 Reactivity is established on the fly, whenever any node references any property that is "visible" through its `props` object, following the rule of prototypal chaining (that is, if the referenced property exists somewhere in the tree structure either belonging to or "above" that object: see [this explainer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Inheritance_and_the_prototype_chain) if prototypal inheritance is confusing).
 
 In mslto, nodes delegate both *get* and *set* operations to an ancestor if they do not own a referenced property. For vanilla JavaScript objects, a *set* operation instead defines a new property for a child, rather than updating that property on the ancestor:
 
 ```js
 // in vanilla JavaScript:
-const parent = { foo: 'bar' };
-const child = Object.create(parent);
+const parent = { foo: 'bar' }
+const child = Object.create(parent)
 // referencing 'foo' on the child delegates to the parent
 child.foo // => 'bar'
 // setting a new value for the same property does not update the parent
-child.foo = 'baz';
+child.foo = 'baz'
 // instead, a new property is defined for the child that 'masks' the parent property
 parent.foo // => 'bar'
 child.foo // => 'baz'
@@ -42,8 +52,8 @@ child.foo // => 'baz'
 
 ```js
 // in mslto:
-const parent = new mslto.Provider(JSON.stringify({ foo: 'bar' }));
-const child = parent.create();
+const parent = new mslto.Provider(JSON.stringify({ foo: 'bar' }))
+const child = parent.create()
 // again, referencing 'foo' on the child delegates to the parent node
 child.props.foo // => 'bar'
 // but, setting a value for the same property does update the parent
@@ -56,19 +66,19 @@ mslto enforces a strict separation-of-concerns between the source of data and th
 Finally, unlike vanilla JavaScript, mslto does not allow new reactive properties to be added or removed following the instantiation of a node. Elements belonging to arrays can be added, removed, and re-ordered, but objects which are elements of arrays are subject to the same limitations:
 
 ```js
-const node = new mslto.Provider(JSON.stringify({ foo: [] }));
+const node = new mslto.Provider(JSON.stringify({ foo: [] }))
 // this will throw an error
 delete node.props.foo
 // this will fail silently
 node.props.something = 'whatever'
 // these are permitted
-node.props.foo.push({ bar: 'baz' }, { boom: 'bap' });
-node.props.foo.reverse();
-node.props.foo.pop();
+node.props.foo.push({ bar: 'baz' }, { boom: 'bap' })
+node.props.foo.reverse()
+node.props.foo.pop()
 // this will also throw an error
 delete node.props.foo[0].boom
 // this will also fail
-node.props.foo[0].zig = 'zag';
+node.props.foo[0].zig = 'zag'
 ```
 
 ### Responding to Changes
@@ -107,11 +117,11 @@ const node = new mslto.Provider(
     // newValue = 'bap'
     // deleted = false
   }
-);
+)
 // let's update the value of a prop in the reactive state.
 // note that reactivity is established through the following 'set' operation,
 // which also triggers the node's propChangedCallback
-node.props.foo[0].bar = 'bap';
+node.props.foo[0].bar = 'bap'
 ```
 
 ### Data Persistence
@@ -119,9 +129,9 @@ At some point, you'll want to get a copy of the data object belonging to some no
 
 ```js
 // the props passed to a node at instantiation time must be a stringified JSON object
-const node = new mslto.Provider(JSON.stringify({ foo: 'bar' }));
+const node = new mslto.Provider(JSON.stringify({ foo: 'bar' }))
 // the reactive data may be updated
-node.props.foo = 'baz';
+node.props.foo = 'baz'
 // then retrieved in serialized form, ready to be sent elsewhere by the application
 node.data // => '{ "foo": "baz" }'
 ```

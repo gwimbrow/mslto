@@ -1,11 +1,18 @@
 const CHANGED = Symbol();
 const CHANNEL = Symbol();
 const PROXIED = Symbol();
-
+// a registry of mslto root nodes
+const register = new Map();
+// the internal state
 const store = new Map();
 
 function fix (method, self, ref, chained, oldValue, newValue) {
-    const key = String(chained);
+    const key = ((c) => {
+        if (Number.isInteger(c[c.length - 1])) {
+            c.pop();
+        }
+        return String(c);
+    })(chained.slice());
     if (store.has(self) === false) {
         store.set(self, new Map());
     }
@@ -67,33 +74,24 @@ function owns (target, key) {
 }
 
 function isIndex (key) {
-    const n = Number(key);
-    return (
-        Number.isInteger(n) &&
-        n >= 0
-    );
-}
-
-function format(proto, chained = [], key) {
-    if (owns(
-        proto,
-        key
-    ) === false) {
-        return [
-            ...chained,
-            isIndex(key) ?
-                Number(key) :
-                key
-        ];
+    try {
+        const n = Number(key);
+        return (
+            Number.isInteger(n) &&
+            n >= 0
+        );
+    } catch (exception) {
+        return key;
     }
-    return chained;
 }
 
-function getReactiveTarget (chained = [], props) {
-    return chained.reduce(
-        (t, k) => t[k],
-        props
-    );
+function format(chained = [], key) {
+    return [
+        ...chained,
+        isIndex(key) ?
+            Number(key) :
+            key
+    ];
 }
 
 function unlink (target) {
@@ -127,7 +125,11 @@ function link (propChanged, props, ref, parent) {
         deleteProperty () { reject(); },
         setPrototypeOf () { reject(); },
         get (target, key) {
-            const proto = target.constructor.prototype;
+            const proto = (
+                target.constructor.prototype === ReactiveArray.prototype ?
+                    Array.prototype :
+                    target.constructor.prototype
+            );
             const isArray = proto === Array.prototype;
             // handle special cases
             if (key === CHANGED) {
@@ -147,46 +149,40 @@ function link (propChanged, props, ref, parent) {
                 return target;
             }
             // end special cases
-            // is this a nested property? if so, is the property still reactive?
-            // will resolve as true if the target was formerly a member of a
-            // reactive array, that may have been removed with pop() or shift()
-            // or something in that vein.
+            // if the property is defined by this node's props object - meaning
+            // that it does not belong to a parent object.
             if (
-                this.chained &&
                 owns(
-                    getReactiveTarget(
-                        this.chained,
-                        ref.self.props[PROXIED]
-                    ),
+                    target,
+                    key
+                ) === false &&
+                parent
+            ) {
+                return parent.props[CHANNEL](
+                    'get',
+                    this.ref || ref.self,
+                    key
+                );
+            }
+            if (
+                // do not trigger reactivity if the property is also owned by
+                // the prototype (like "length" for Arrays)
+                typeof key !== 'symbol' &&
+                owns(
+                    proto,
                     key
                 ) === false
             ) {
-                return target[key];
-            }
-            // if the property is defined by this node's props object - meaning
-            // that it does not belong to a parent object.
-            if (owns(
-                target,
-                key
-            )) {
                 const chained = format(
-                    proto,
                     this.chained,
                     key
                 );
-                // do not trigger reactivity if the property is owned by the
-                // prototype (like "length" for Arrays)
-                if (owns(
-                    proto,
-                    key
-                ) === false) {
-                    fix(
-                        'get',
-                        ref.self,
-                        this.ref,
-                        chained
-                    );
-                }
+                fix(
+                    'get',
+                    ref.self,
+                    this.ref,
+                    chained
+                );
                 // return a Proxy for nested objects and arrays
                 if (
                     typeof target[key] === 'object' &&
@@ -208,7 +204,7 @@ function link (propChanged, props, ref, parent) {
                             nested,
                             ReactiveArray.prototype
                         );
-                    } else {
+                    } else if (nestedProto !== ReactiveArray.prototype) {
                         Object.preventExtensions(nested)
                     }
                     return new Proxy(
@@ -228,7 +224,6 @@ function link (propChanged, props, ref, parent) {
                                             ref.self,
                                             this.ref,
                                             format(
-                                                nestedProto,
                                                 this.chained,
                                                 k
                                             ),
@@ -248,12 +243,6 @@ function link (propChanged, props, ref, parent) {
                         Number(key) :
                         key
                 ];
-            } else if (parent) {
-                return parent.props[CHANNEL](
-                    'get',
-                    this.ref || ref.self,
-                    key
-                );
             }
             return target[key];
         },
@@ -262,61 +251,27 @@ function link (propChanged, props, ref, parent) {
             // for example after calling Array.prototype.reverse()
             const cleanValue = unlink(value);
             const isArray = Array.isArray(target);
-            const proto = target.constructor.prototype;
+            const oldValue = target[key];
+            const proto = (
+                target.constructor.prototype === ReactiveArray.prototype ?
+                    Array.prototype :
+                    target.constructor.prototype
+            );
+            // do not allow overwriting nested objects
             if (
-                // do not allow overwriting nested objects
                 isArray === false &&
                 typeof target[key] === 'object'
             ) {
                 return false;
             }
-            // trigger reactivity if
+            // should this operation be delegated to the parent?
             if (
-                // the key does not belong to the object prototype
                 owns(
-                    proto,
+                    target,
                     key
                 ) === false &&
-                (
-                    (
-                        // the key does belong to the target
-                        owns(
-                            target,
-                            key
-                        ) &&
-                        // the key is still present in the props object,
-                        // meaning that it was not removed from a reactive
-                        // array through an operation like pop() or shift()
-                        (
-                            owns(
-                                getReactiveTarget(
-                                    this.chained,
-                                    ref.self.props[PROXIED]
-                                ),
-                                key
-                            )
-                        )
-                    ) ||
-                    // the target is an array, and the key is an index value
-                    (
-                        isArray &&
-                        isIndex(key)
-                    )
-                )
+                parent
             ) {
-                fix(
-                    'set',
-                    ref.self,
-                    this.ref,
-                    format(
-                        proto,
-                        this.chained,
-                        key
-                    ),
-                    target[key],
-                    cleanValue
-                );
-            } else if (parent) {
                 return parent.props[CHANNEL](
                     'set',
                     this.ref || ref.self,
@@ -324,12 +279,41 @@ function link (propChanged, props, ref, parent) {
                     cleanValue
                 );
             }
+            // set the value before triggering reactivity
             target[
                 isArray &&
                 isIndex(key) ?
                     Number(key) :
                     key
             ] = cleanValue;
+            // trigger reactivity
+            if (
+                // the key does not belong to the object prototype
+                typeof key !== 'symbol' &&
+                (
+                  owns(
+                      proto,
+                      key
+                  ) === false  ||
+                  // the target is an array, and the key is an index value
+                  (
+                      isArray &&
+                      isIndex(key)
+                  )
+                )
+            ) {
+                fix(
+                    'set',
+                    ref.self,
+                    this.ref,
+                    format(
+                        this.chained,
+                        key
+                    ),
+                    oldValue,
+                    cleanValue
+                );
+            }
             return true;
         }
     }
@@ -352,8 +336,13 @@ function parse (props = '{}') {
     return parsed;
 }
 
+export function lookup (name) {
+    return register.get(name);
+}
+
 export class Provider {
     constructor (props, propChangedCallback) {
+        let n = undefined;
         const self = this;
         Object.defineProperties(
             self,
@@ -383,6 +372,19 @@ export class Provider {
                         return JSON.stringify(this.props[PROXIED]);
                     }
                 },
+                name: {
+                    get () {
+                        return n;
+                    },
+                    set (value) {
+                        if (n === undefined) {
+                            n = value;
+                            register.set(value, self);
+                        } else {
+                            throw new Error('This node has already been named');
+                        }
+                    }
+                },
                 props: {
                     value: props &&
                         props[PROXIED] ?
@@ -399,5 +401,6 @@ export class Provider {
                 }
             }
         );
+        Object.freeze(self);
     }
 }

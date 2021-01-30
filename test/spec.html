@@ -26,10 +26,23 @@
         it('should expose a "Provider" class', function () {
           expect(mslto.Provider).to.be.a('function');
         });
+        it('should expose a function that returns references to named Provider instances', function () {
+          expect(mslto.lookup).to.be.a('function');
+        });
         describe('Provider Class', function () {
           it('should be a constructor', function () {
             var Provider = mslto.Provider;
             expect(new Provider('{}')).to.be.an.instanceOf(Provider);
+          });
+          it('should add "named" nodes to a public registry', function () {
+            var Provider = mslto.Provider;
+            var instance = new Provider();
+            instance.name = 'root';
+            expect(mslto.lookup('root')).to.equal(instance);
+            // once a name is assigned, it can neither be changed nor redacted
+            expect(() => instance.name = 'renamed').to.throw();
+            delete instance.name;
+            expect(instance.name).to.equal('root');
           });
         });
         describe('Provider Instances', function () {
@@ -137,8 +150,8 @@
             var model = { foo: 'bar ' };
             var Provider = mslto.Provider;
             var instance = new Provider(JSON.stringify(model));
-            expect(() => delete instance.props.foo).to.throw('This action is not permitted');
-            expect(() => instance.props.boom = 'bap').to.throw('Cannot add property boom, object is not extensible');
+            expect(() => delete instance.props.foo).to.throw();
+            expect(() => instance.props.boom = 'bap').to.throw();
           });
           describe('for nested objects', function () {
             it('should react to changes', function (done) {
