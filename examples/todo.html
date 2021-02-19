@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>to-do list example</title>
+  <script src="../dist/mslto.min.js"></script>
+  <style>
+  </style>
+  <script>
+    // let's define a few custom element classes for our app
+    class ListKeeper extends HTMLElement {
+
+      static get observedAttributes () {
+        return ['provider-name']
+      }
+
+      attributeChangedCallback (key, oldValue, newValue) {
+        if (key === 'provider-name') {
+          this.setup();
+        }
+      }
+
+      forEachTodo (callback) {
+        const list = this.querySelector('#todo-list');
+        Array.from(list.childNodes).forEach(function (i) {
+          const childProviderName = i.getAttribute('provider-name')
+          const childState = mslto.lookup(childProviderName);
+          callback(childState);
+        });
+      }
+
+      setup () {
+        const clearCompleted = this.querySelector('#clearCompleted');
+        const input = this.querySelector('#new-todo');
+        const name = this.getAttribute('provider-name');
+        const options = this.querySelector('#options');
+        const state = mslto.lookup(name);
+        const toggleAll = this.querySelector('#toggle-all');
+
+        this.querySelector('#all').setAttribute(
+          'checked',
+          true
+        );
+
+        clearCompleted.addEventListener(
+          'click',
+          () => {
+            this.forEachTodo(function (childState) {
+              if (childState.props.completed) {
+                childState.props.cleared = true;
+              }
+            });
+          }
+        );
+
+        input.addEventListener(
+          'keyup',
+          (event) => {
+            if (event.key === "Enter") {
+              // add a new todo item to the state
+              this.insert(input.value);
+              // reset the input
+              input.value = '';
+            }
+          }
+        );
+
+        options.addEventListener(
+          'change',
+          (event) => {
+            state.props.viewing = event.target.value;
+          }
+        );
+
+        toggleAll.addEventListener(
+          'change',
+          (event) => {
+            const { checked } = event.target;
+            this.forEachTodo(function (childState) {
+              childState.props.completed = checked;
+            });
+            state.props.viewing = options.querySelector('input:checked').value;
+          }
+        );
+
+        state.props.history.push({
+          node: name,
+          action: 'setup'
+        });
+      }
+
+      connectedCallback () {
+        this.innerHTML = `
+          <div>
+            <input id="toggle-all" type="checkbox" hidden="true">
+            <label for="toggle-all" hidden="true">Mark all as complete</label>
+            <input id="new-todo" placeholder="What needs to be done?" autofocus>
+          </div>
+          <ul id="todo-list"></ul>
+          <div>
+            <span id="todo-count" hidden="true">0</span>
+            <div id="options" hidden=true>
+              <input type="radio" name="viewing" id="all" value="all">
+              <label for="all">All</label>
+              <input type="radio" name="viewing" id="active" value="active">
+              <label for="active">Active</label>
+              <input type="radio" name="viewing" id="completed" value="completed">
+              <label for="completed">Completed</label>
+              <button type="button" id="clearCompleted" hidden="true">Clear Completed</button>
+            </div>
+          </div>
+        `;
+      }
+
+      refresh (viewing) {
+        const clearCompleted = this.querySelector('#clearCompleted');
+        const counter = this.querySelector('#todo-count');
+        const list = this.querySelector('#todo-list');
+        const options = this.querySelector('#options');
+        const state = mslto.lookup(this.getAttribute('provider-name'));
+        const toggleAll = this.querySelector('#toggle-all');
+
+        let completedCount = 0;
+
+        this.forEachTodo(function (childState) {
+          const { completed } = childState.props;
+          if (completed) {
+            completedCount += 1;
+          }
+          // toggle visibility in the item's props
+          switch (viewing || state.props.viewing) {
+            case 'all':
+              childState.props.hidden = false;
+              break;
+            case 'active':
+              childState.props.hidden = completed;
+              break;
+            case 'completed':
+              childState.props.hidden = !completed;
+              break;
+          }
+        });
+
+        clearCompleted.hidden = !completedCount;
+        counter.hidden = !list.childElementCount;
+        counter.innerText = (() => {
+          const count = list.childElementCount - completedCount;
+          return `${count} item${!count || count > 1 ? 's' : ''} left`;
+        })();
+        options.hidden = !list.childElementCount;
+        toggleAll.checked = (
+          completedCount &&
+          completedCount === list.childElementCount
+        );
+        toggleAll.hidden = !list.childElementCount;
+      }
+
+      insert (value) {
+        const counter = this.querySelector('#todo-count');
+        const state = mslto.lookup(this.getAttribute('provider-name'));
+        const list = this.querySelector('#todo-list');
+        const index = list.childElementCount;
+        const options = this.querySelector('#options');
+        const toggleAll = this.querySelector('#toggle-all');
+        // create a new todo item
+        const todo = document.createElement('list-item');
+        // create a new mslto node for the todo item, if needed
+        const childProvider = state.create(
+          JSON.stringify({
+            cleared: false,
+            completed: false,
+            hidden: false,
+            text: ''
+          }),
+          todo.propChangedCallback.bind(todo)
+        );
+        // associate the mslto node with the element
+        childProvider.name = `todo-${index}`;
+        // add the element to the list container
+        list.append(todo);
+        todo.setAttribute('provider-name', `todo-${index}`);
+        // update the child node to match the state
+        childProvider.props.text = value;
+        if (state.props.viewing === 'completed') {
+          childProvider.props.hidden = true;
+        }
+        // show the toggle-all checkbox amd view options
+        options.hidden = false;
+        toggleAll.hidden = false;
+        counter.hidden = false;
+        counter.innerText = counter.innerText.replace(
+          /(\d+)(?:.*)/,
+          (_, a) => {
+            const count = Number(a) + 1;
+            return `${count} item${count > 1 ? 's' : ''} left`;
+          }
+        );
+      }
+
+      propChangedCallback (key, oldValue, newValue, deleted) {
+        switch (key[0]) {
+          case 'history':
+            if (
+              newValue.action === 'cleared' ||
+              newValue.action === 'completed'
+            ) {
+              this.refresh();
+            }
+            break;
+          case 'viewing':
+            this.refresh(newValue);
+            break;
+        }
+      }
+    };
+
+    class ListItem extends HTMLElement {
+
+      static get observedAttributes () {
+        return ['provider-name']
+      }
+
+      attributeChangedCallback (key, oldValue, newValue) {
+        if (key === 'provider-name') {
+          this.setup(newValue);
+        }
+      }
+
+      setup (name) {
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        const destroy = this.querySelector('button');
+        const edit = this.querySelector('input[type="text"]');
+        const label = this.querySelector('label');
+        const state = mslto.lookup(name);
+
+        const handleEdit = () => {
+          edit.hidden = true;
+          state.props.text = label.innerText = edit.value;
+          label.hidden = false;
+          document.body.removeEventListener(
+            'click',
+            clickOutside
+          );
+        }
+
+        const clickOutside = (event) => {
+          if (event.target !== edit) {
+            handleEdit();
+          }
+        };
+
+        this.addEventListener(
+          'mouseenter',
+          () => {
+            destroy.hidden = false;
+          }
+        );
+
+        this.addEventListener(
+          'mouseleave',
+          () => {
+            destroy.hidden = true;
+          }
+        );
+
+        checkbox.addEventListener(
+          'change',
+          (event) => {
+            state.props.completed = !state.props.completed;
+          }
+        );
+
+        destroy.addEventListener(
+          'click',
+          () => {
+            state.props.cleared = true;
+          }
+        )
+
+        edit.addEventListener(
+          'keyup',
+          (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              handleEdit();
+            }
+          }
+        )
+
+        label.addEventListener(
+          'click',
+          (event) => event.preventDefault()
+        );
+
+        label.addEventListener(
+          'dblclick',
+          () => {
+            label.hidden = true;
+            edit.value = label.innerText;
+            edit.hidden = false;
+            edit.focus();
+            document.body.addEventListener(
+              'click',
+              clickOutside
+            )
+          }
+        );
+
+        state.props.history.push({
+          node: name,
+          action: 'setup'
+        });
+      }
+
+      connectedCallback () {
+        this.innerHTML = `
+          <input class="toggle" type="checkbox">
+          <label></label>
+          <input type="text" hidden="true">
+          <button class="destroy" hidden="true">x</button>
+        `;
+      }
+
+      propChangedCallback (key, oldValue, newValue, deleted) {
+        const name = this.getAttribute('provider-name');
+        const state = mslto.lookup(name);
+        switch (key[0]) {
+          case 'hidden':
+            this.hidden = newValue;
+            break;
+          case 'cleared':
+            this.remove();
+            state.props.history.push({
+              node: name,
+              action: 'cleared'
+            });
+            break;
+          case 'completed':
+            this.querySelector('input[type="checkbox"]').checked = newValue;
+            state.props.history.push({
+              node: name,
+              action: 'completed',
+              value: newValue
+            });
+            this.classList[newValue ? 'add' : 'remove']('completed');
+            break;
+          case 'text':
+            this.querySelector('label').innerText = newValue;
+            break;
+        }
+      }
+    };
+
+    customElements.define('list-keeper', ListKeeper);
+    customElements.define('list-item', ListItem);
+  </script>
+</head>
+<body>
+  <section class="todoapp">
+    <header>
+      <h1>todos</h1>
+    </header>
+    <list-keeper></list-keeper>
+  </section>
+  <footer class="info">
+    <p>Double-click to edit a todo</p>
+    <p>Created by <a href="https://github.com/gwimbrow/">Graham Wimbrow</a></p>
+    <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+  </footer>
+  <script>
+    (function () {
+      const keeper = document.querySelector('list-keeper');
+      const rootNode = new mslto.Provider(
+        JSON.stringify({
+          history: [],
+          viewing: 'all'
+        }),
+        keeper.propChangedCallback.bind(keeper)
+      );
+      rootNode.name = 'state';
+      keeper.setAttribute('provider-name', 'state');
+    })()
+  </script>
+</body>
+</html>
