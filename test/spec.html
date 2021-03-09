@@ -26,37 +26,24 @@
         it('should expose a "Provider" class', function () {
           expect(mslto.Provider).to.be.a('function');
         });
-        it('should expose a function that returns references to named Provider instances', function () {
-          expect(mslto.lookup).to.be.a('function');
-        });
         describe('Provider Class', function () {
           it('should be a constructor', function () {
             var Provider = mslto.Provider;
-            expect(new Provider('{}')).to.be.an.instanceOf(Provider);
-          });
-          it('should add "named" nodes to a public registry', function () {
-            var Provider = mslto.Provider;
-            var instance = new Provider();
-            instance.name = 'root';
-            expect(mslto.lookup('root')).to.equal(instance);
-            // once a name is assigned, it can neither be changed nor redacted
-            expect(() => instance.name = 'renamed').to.throw();
-            delete instance.name;
-            expect(instance.name).to.equal('root');
+            expect(new Provider('{"foo": "bar"}')).to.be.an.instanceOf(Provider);
           });
         });
         describe('Provider Instances', function () {
-          it('should expose "create", "data", and "props" properties', function () {
+          it('should expose "data", "state", and "register" properties', function () {
             var Provider = mslto.Provider;
-            var instance = new Provider('{}');
-            expect(instance).to.have.property('create');
-            expect(instance).to.have.property('props');
+            var instance = new Provider('{"foo": "bar"}');
             expect(instance).to.have.property('data');
+            expect(instance).to.have.property('state');
+            expect(instance).to.have.property('register');
           });
           it('should accept only JSON data as props', function () {
             var Provider = mslto.Provider;
-            expect(new Provider('{}')).to.be.ok;
             expect(new Provider('{"foo": "bar", "boom": ["bap"]}')).to.be.ok;
+            expect(() => new Provider('{}')).to.throw('Props cannot be empty');
             expect(() => new Provider('[]')).to.throw('Props cannot be an array');
             expect(() => new Provider('foo')).to.throw();
           });
@@ -66,189 +53,148 @@
             var instance = new Provider(JSON.stringify(model));
             expect(instance.data).to.equal(JSON.stringify(model));
           });
-          it('should allow creating nodes with no props and no callback function', function () {
-            var Provider = mslto.Provider;
-            expect(new Provider()).to.be.ok;
-            expect((new Provider()).create()).to.be.ok;
-          });
-          it('should assign properties from a provided JSON object to "props"', function () {
+          it('should assign properties from a provided JSON object to "state"', function () {
             var model = { foo: 'bar' };
             var Provider = mslto.Provider;
             var instance = new Provider(JSON.stringify(model));
-            expect(instance.props.foo).to.equal(model.foo);
-          });
-          it('should return a child node from "create"', function () {
-            var Provider = mslto.Provider;
-            var instance = new Provider('{}');
-            var child = instance.create('{}');
-            expect(child).to.be.an.instanceOf(Provider);
-          });
-          it('should delegate lookups for props to a parent node', function () {
-            var model = { foo: 'bar' };
-            var Provider = mslto.Provider;
-            var instance = new Provider(JSON.stringify(model));
-            var child = instance.create('{}');
-            expect(child.props.foo).to.equal(model.foo);
+            expect(instance.state.foo).to.equal(model.foo);
           });
         });
         describe('Reactivity', function () {
-          it('should trigger a node\'s callback function whenever an observed prop changes', function (done) {
-            var model = { foo: 'bar' };
-            var Provider = mslto.Provider;
-            var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-              expect(key.length).to.equal(1);
-              expect(key).to.deep.equal(['foo']);
-              expect(oldValue).to.equal(model.foo);
-              expect(newValue).to.equal('baz');
-              done();
-            });
-            instance.props.foo;
-            instance.props.foo = 'baz';
-          });
-          it('should trigger callback functions for all nodes observing a changed prop', function (done) {
-            let count = 0;
-            var model = { foo: 'bar' };
-            var Provider = mslto.Provider;
-            function getCallback () {
-              return function () {
-                if (++count === 4) {
-                  done();
-                }
-              };
-            };
-            var instance = new Provider(JSON.stringify(model), getCallback());
-            var child = instance.create('{}', getCallback());
-            instance.props.foo;
-            child.props.foo;
-            child.props.foo = 'baz';
-            instance.props.foo = 'bar'
-          });
-          it('should bind "this" to the node instance that owns the callback', function (done) {
-            var model = { foo: 0, boom: 1 };
-            var Provider = mslto.Provider;
-            var callback = function (key, oldValue, newValue) {
-              const self = this;
-              switch(oldValue) {
-                case 0:
-                  expect(self).to.equal(parent);
-                  expect(key).to.deep.equal(['foo']);
-                  expect(newValue).to.equal('bar');
-                  break;
-                case 1:
-                  expect(self).to.equal(child);
-                  expect(key).to.deep.equal(['boom']);
-                  expect(newValue).to.equal('bap');
-                  done();
-              }
-            };
-            var parent = new Provider(JSON.stringify(model), callback);
-            var child = parent.create('{}', callback);
-            parent.props.foo = 'bar';
-            child.props.boom = 'bap';
-          });
           it('should disallow adding or removing properties for objects', function () {
             var model = { foo: 'bar ' };
             var Provider = mslto.Provider;
             var instance = new Provider(JSON.stringify(model));
-            expect(() => delete instance.props.foo).to.throw();
-            expect(() => instance.props.boom = 'bap').to.throw();
+            expect(() => delete instance.state.foo).to.throw();
+            expect(() => instance.state.boom = 'bap').to.throw();
+          });
+          it('should trigger a callback function whenever a condition is satisfied', function (done) {
+            var model = { x: 0, y: 1 };
+            var Provider = mslto.Provider;
+            var instance = new Provider(JSON.stringify(model));
+            var condition = function (state) {
+              return state.x === state.y;
+            };
+            var callback = function (state) {
+              expect(state.x).to.equal(state.y);
+              done();
+            };
+            instance.register(condition, callback);
+            instance.state.x = 1;
           });
           describe('for nested objects', function () {
             it('should react to changes', function (done) {
-              var model = { foo: { bar: 'baz' } };
+              var model = { foo: { x: 0 }, y: 1 };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.be.an.instanceOf(Array);
-                expect(key).to.deep.equal(['foo', 'bar']);
-                expect(oldValue).to.equal(model.foo.bar);
-                expect(newValue).to.equal('baz');
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return state.foo.x === state.y;
+              };
+              var callback = function (state) {
+                expect(state.foo.x).to.equal(state.y);
                 done();
-              });
-              var child = instance.create('{}');
-              instance.props.foo.bar;
-              child.props.foo.bar = 'baz';
+              };
+              instance.register(condition, callback);
+              instance.state.foo.x = 1
             });
           });
           describe('for arrays', function () {
-            it('should trigger on Array.prototype.push()', function (done) {
+            it('push', function (done) {
               var model = { foo: [] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.deep.equal(['foo', 0]);
-                expect(oldValue).to.equal(undefined);
-                expect(newValue).to.equal('bar');
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return state.foo.length === 1;
+              };
+              var callback = function (state) {
+                expect(state.foo.length).to.equal(1);
+                expect(state.foo[0]).to.equal('bar');
                 done();
-              });
-              instance.props.foo.push('bar');
+              };
+              instance.register(condition, callback);
+              instance.state.foo.push('bar');
             });
-            it('should trigger on Array.prototype.unshift()', function (done) {
+            it('unshift', function (done) {
               var model = { foo: [] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.deep.equal(['foo', 0]);
-                expect(oldValue).to.equal(undefined);
-                expect(newValue).to.equal('bar');
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return state.foo.length === 1;
+              };
+              var callback = function (state) {
+                expect(state.foo[0]).to.equal('bar')
                 done();
-              });
-              instance.props.foo.unshift('bar');
+              };
+              instance.register(condition, callback);
+              instance.state.foo.unshift('bar');
             });
-            it('should trigger on Array.prototype.fill()', function (done) {
+            it('fill', function (done) {
               var model = { foo: ['bar'] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.deep.equal(['foo', 0]);
-                expect(oldValue).to.equal(model.foo[0]);
-                expect(newValue).to.equal('baz');
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                // set up a more specific condition
+                return state.foo.includes('baz');
+              };
+              var callback = function (state) {
+                expect(state.foo).to.deep.equal(['baz']);
                 done();
-              });
-              instance.props.foo.fill('baz');
+              };
+              instance.register(condition, callback);
+              instance.state.foo.fill('baz');
             });
-            it('should trigger on Array.prototype.copyWithin()', function (done) {
+            it('copyWithin', function (done) {
               var model = { foo: [0, 1] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.deep.equal(['foo', 0]);
-                expect(oldValue).to.equal(model.foo[0]);
-                expect(newValue).to.equal(model.foo[1]);
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return state.foo[0] === 1;
+              };
+              var callback = function (state) {
+                expect(state.foo).to.deep.equal([1, 1]);
                 done();
-              });
-              instance.props.foo.copyWithin(0, 1);
+              };
+              instance.register(condition, callback);
+              instance.state.foo.copyWithin(0, 1);
             });
-            it('should trigger on Array.prototype.reverse()', function (done) {
+            it('reverse', function (done) {
               let count = 0;
               var model = { foo: [0, 1] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue) {
-                expect(key).to.deep.equal(['foo', count]);
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return !!state.foo;
+              };
+              var callback = function (state) {
                 switch(count++) {
                   case 0: {
-                    expect(oldValue).to.equal(0);
-                    expect(newValue).to.equal(1);
+                    expect(state.foo[0]).to.equal(1);
                     break;
                   }
                   case 1: {
-                    expect(oldValue).to.equal(1);
-                    expect(newValue).to.equal(0);
+                    expect(state.foo[1]).to.equal(0);
                     done();
                   }
                 }
-              });
-              instance.props.foo.reverse();
+              };
+              instance.register(condition, callback);
+              instance.state.foo.reverse();
             });
-            it('should trigger on Array.prototype.pop()', function (done) {
+            it('pop', function (done) {
               var model = { foo: [0, 1] };
               var Provider = mslto.Provider;
-              var instance = new Provider(JSON.stringify(model), function (key, oldValue, newValue, deleted) {
-                expect(key).to.deep.equal(['foo', 1]);
-                expect(oldValue).to.equal(1);
-                expect(newValue).to.equal(undefined);
-                expect(deleted).to.equal(true);
+              var instance = new Provider(JSON.stringify(model));
+              var condition = function (state) {
+                return state.foo.length === 1;
+              }
+              var callback = function (state) {
+                expect(state.foo.length).to.equal(1);
                 done();
-              });
-              var removed = instance.props.foo.pop();
-              expect(removed).to.equal(model.foo.pop());
+              };
+              instance.register(condition, callback);
+              expect(instance.state.foo.pop()).to.equal(model.foo.pop());
             });
-            it('should trigger on Array.prototype.shift()', function (done) {
+            it('shift', function (done) {
               let count = 0;
               var model = { foo: [0, 1] };
               var Provider = mslto.Provider;
@@ -270,7 +216,7 @@
               });
               instance.props.foo.shift();
             });
-            it('should trigger on Array.prototype.splice()', function (done) {
+            it('splice', function (done) {
               let count = 0;
               var model = { foo: [0, 1] };
               var Provider = mslto.Provider;
